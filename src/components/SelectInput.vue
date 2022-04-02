@@ -1,14 +1,25 @@
 <script setup lang="ts">
-interface ISelectInput {
+interface ISelectInputProps {
   listOptions: string[];
   currencySelected: string;
 }
 
-defineProps<ISelectInput>();
+interface ISelectInputEmits {
+  (e: "update:option", option: string): void;
+}
+
+defineProps<ISelectInputProps>();
+const emits = defineEmits<ISelectInputEmits>();
+
+const onSelectChange = (e: Event) => {
+  const value = (e.target as HTMLInputElement).value;
+  emits("update:option", value);
+};
 </script>
 
 <template>
-  <select class="selectInput">
+  <select class="selectInput" @change="onSelectChange">
+    <option value="" disabled>Select currency</option>
     <option
       v-for="option in listOptions"
       :key="option"
