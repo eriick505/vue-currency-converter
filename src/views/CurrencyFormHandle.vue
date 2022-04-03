@@ -1,86 +1,159 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import SelectInputVue from "@/components/SelectInput.vue";
+import { computed, reactive, ref } from "vue";
+
 import { getCurrencyByName } from "@/services/getCurrencyByName";
+import SelectInputVue from "@/components/SelectInput.vue";
+import type { ICurrencyResponseData, IConversionRates } from "@/types/currency";
 
-const loading = ref(false);
-const error = ref("");
-const listOptions = ref<string[]>([]);
+interface IStateCurrency {
+  loading: boolean;
+  data?: ICurrencyResponseData;
+  currencyList: string[];
+  error: string;
+}
 
-const timesCurrency = ref(1);
+const defaultCurrecyOne = "USD";
+const defaultCurrecyTwo = "BRL";
 
-const currecyOne = "USD";
-const currecyTwo = "BRL";
+const stateCurrency: IStateCurrency = reactive({
+  loading: false,
+  data: undefined,
+  currencyList: [],
+  error: "",
+});
 
-const selectedOptionOne = ref(currecyOne);
-const selectedOptionTwo = ref(currecyTwo);
+const stateOptionsSelected = reactive({
+  optionOne: defaultCurrecyOne,
+  optionTwo: defaultCurrecyTwo,
+});
 
-console.log(selectedOptionOne.value, "selectedOption.value xxxxxxxxxxx");
+const howManyCurrency = ref(1);
 
 const handleCurrencyList = async () => {
   try {
-    loading.value = true;
-    const { data } = await getCurrencyByName();
+    stateCurrency.loading = true;
+    const { data } = await getCurrencyByName(stateOptionsSelected.optionOne);
 
     const getOptionsFirstSelect = Object.keys(data.conversion_rates).map(
       (currency) => currency
     );
 
-    listOptions.value = getOptionsFirstSelect;
+    stateCurrency.currencyList = getOptionsFirstSelect;
+    stateCurrency.data = data;
   } catch (e) {
-    error.value = (e as Error).message;
+    stateCurrency.error = (e as Error).message;
   } finally {
-    loading.value = false;
+    stateCurrency.loading = false;
   }
 };
 
-const getUpdatedOptionOne = (newOption: string) =>
-  (selectedOptionOne.value = newOption);
+const getUpdatedOptionOne = (newOption: string) => {
+  stateOptionsSelected.optionOne = newOption;
+  handleCurrencyList();
+};
 
 const getUpdatedOptionTwo = (newOption: string) =>
-  (selectedOptionTwo.value = newOption);
+  (stateOptionsSelected.optionTwo = newOption);
+
+const changeCurrencyValues = computed(() => {
+  const valueFromOptionTwoSelected =
+    stateOptionsSelected.optionTwo as keyof IConversionRates;
+
+  if (!stateCurrency.data) return 0;
+
+  const currencyTwoValue =
+    stateCurrency.data?.conversion_rates[valueFromOptionTwoSelected];
+
+  return Number((howManyCurrency.value * currencyTwoValue).toFixed(2));
+});
+
+const getCurrencyInfo = computed(() => {
+  const currencyTwoValue =
+    stateCurrency.data?.conversion_rates[
+      stateOptionsSelected.optionTwo as keyof IConversionRates
+    ];
+
+  return `1 ${stateOptionsSelected.optionOne} = ${currencyTwoValue} ${stateOptionsSelected.optionTwo}`;
+});
+
+const showElements = computed(
+  () => !stateCurrency.loading && !stateCurrency.error
+);
 
 handleCurrencyList();
 </script>
 
 <template>
-  <form class="formHandleCurrency">
-    <p>{{ selectedOptionOne }} : selectedOptionOne</p>
-    <p>{{ selectedOptionTwo }} : selectedOptionTwo</p>
-    <h1 v-if="loading">CARREGANDO...</h1>
-    <div v-else class="row">
-      <SelectInputVue
-        :list-options="listOptions"
-        :currencySelected="currecyOne"
-        @update:option="getUpdatedOptionOne"
-      />
-      <SelectInputVue
-        :list-options="listOptions"
-        :currencySelected="currecyTwo"
-        @update:option="getUpdatedOptionTwo"
-      />
-      <p v-show="error.length">{{ error }}</p>
-    </div>
-  </form>
+  <div class="container">
+    <h1 v-show="stateCurrency.loading">CARREGANDO...</h1>
+    <p v-show="stateCurrency.error">{{ stateCurrency.error }}</p>
 
-  <div>
-    <label
-      >Converter: <input type="number" min="1" v-model="timesCurrency" />{{
-        timesCurrency
-      }}</label
-    >
+    <div v-show="showElements">
+      <form class="formHandleCurrency">
+        <div class="row">
+          <SelectInputVue
+            :list-options="stateCurrency.currencyList"
+            :currencySelected="stateOptionsSelected.optionOne"
+            @update:option="getUpdatedOptionOne"
+          />
+          <SelectInputVue
+            :list-options="stateCurrency.currencyList"
+            :currencySelected="stateOptionsSelected.optionTwo"
+            @update:option="getUpdatedOptionTwo"
+          />
+        </div>
+      </form>
+
+      <div class="WrappercurrencyOneTimes row">
+        <div>
+          <input type="number" min="1" v-model.number="howManyCurrency" />
+        </div>
+
+        <p class="currencyValueOneTimes">{{ changeCurrencyValues }}</p>
+      </div>
+
+      <div class="currencyInfo">
+        <p>{{ getCurrencyInfo }}</p>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.formHandleCurrency {
+.container {
   max-width: 500px;
   margin: 3rem auto 0;
+  padding: 0 1rem;
 
   .row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
   }
+}
+
+.WrappercurrencyOneTimes {
+  margin-top: 3rem;
+
+  input {
+    padding: 1rem 0.7rem;
+    border-radius: 4px;
+  }
+
+  .currencyValueOneTimes {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    margin-bottom: 0;
+
+    font-size: 2rem;
+    text-align: center;
+  }
+}
+
+.currencyInfo {
+  margin-top: 2rem;
+  text-align: center;
 }
 </style>
